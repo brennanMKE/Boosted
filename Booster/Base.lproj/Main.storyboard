@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="12121" systemVersion="16G29" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" colorMatched="YES" initialViewController="hBH-bW-9Tg">
+    <device id="retina4_7" orientation="portrait">
+        <adaptation id="fullscreen"/>
+    </device>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="12089"/>
+        <capability name="Constraints to layout margins" minToolsVersion="6.0"/>
+        <capability name="Constraints with non-1.0 multipliers" minToolsVersion="5.1"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <scenes>
+        <!--Booster-->
+        <scene sceneID="tne-QT-ifu">
+            <objects>
+                <viewController id="BYZ-38-t0r" customClass="ViewController" customModule="Booster" customModuleProvider="target" sceneMemberID="viewController">
+                    <layoutGuides>
+                        <viewControllerLayoutGuide type="top" id="y3c-jy-aDJ"/>
+                        <viewControllerLayoutGuide type="bottom" id="wfy-db-euE"/>
+                    </layoutGuides>
+                    <view key="view" contentMode="scaleToFill" id="8bC-Xf-vdC">
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="RzF-1A-uSr" customClass="WaveformView" customModule="BoosterKit">
+                                <rect key="frame" x="16" y="72" width="343" height="75"/>
+                                <color key="backgroundColor" red="0.95046514270000004" green="0.54379636050000002" blue="0.061473898589999999" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                <constraints>
+                                    <constraint firstAttribute="height" constant="75" id="rnp-GG-2xu"/>
+                                </constraints>
+                                <userDefinedRuntimeAttributes>
+                                    <userDefinedRuntimeAttribute type="color" keyPath="tintColor">
+                                        <color key="value" red="0.95046514270000004" green="0.54379636050000002" blue="0.061473898589999999" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                    </userDefinedRuntimeAttribute>
+                                </userDefinedRuntimeAttributes>
+                            </view>
+                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="CC8-ZK-VWZ">
+                                <rect key="frame" x="16" y="155" width="82" height="41"/>
+                                <fontDescription key="fontDescription" type="boldSystem" pointSize="24"/>
+                                <state key="normal" title="Record">
+                                    <color key="titleColor" red="0.95046514270000004" green="0.54379636050000002" blue="0.061473898589999999" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                </state>
+                                <connections>
+                                    <action selector="recordButtonTapped:" destination="BYZ-38-t0r" eventType="touchUpInside" id="DpP-AF-ztq"/>
+                                </connections>
+                            </button>
+                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="7xv-1F-Uek">
+                                <rect key="frame" x="16" y="204" width="50" height="41"/>
+                                <fontDescription key="fontDescription" type="boldSystem" pointSize="24"/>
+                                <state key="normal" title="Play">
+                                    <color key="titleColor" red="0.95046514270000004" green="0.54379636050000002" blue="0.061473898589999999" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                </state>
+                                <connections>
+                                    <action selector="playButtonTapped:" destination="BYZ-38-t0r" eventType="touchUpInside" id="Qge-gR-X45"/>
+                                </connections>
+                            </button>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Route" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="fsE-Mn-24h">
+                                <rect key="frame" x="161.5" y="623" width="52.5" height="24"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="20"/>
+                                <nil key="textColor"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                            <activityIndicatorView hidden="YES" opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" hidesWhenStopped="YES" style="gray" translatesAutoresizingMaskIntoConstraints="NO" id="rbx-fT-lr7">
+                                <rect key="frame" x="177.5" y="190" width="20" height="20"/>
+                            </activityIndicatorView>
+                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="0zY-Uu-YIs">
+                                <rect key="frame" x="16" y="253" width="76" height="41"/>
+                                <fontDescription key="fontDescription" type="boldSystem" pointSize="24"/>
+                                <state key="normal" title="Export">
+                                    <color key="titleColor" red="0.95046514270000004" green="0.54379636050000002" blue="0.061473898589999999" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                </state>
+                                <connections>
+                                    <action selector="exportButtonTapped:" destination="BYZ-38-t0r" eventType="touchUpInside" id="5wa-bX-TyE"/>
+                                </connections>
+                            </button>
+                        </subviews>
+                        <color key="backgroundColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <constraints>
+                            <constraint firstItem="7xv-1F-Uek" firstAttribute="top" secondItem="CC8-ZK-VWZ" secondAttribute="bottom" constant="8" id="4M9-fJ-Lgt"/>
+                            <constraint firstItem="wfy-db-euE" firstAttribute="top" secondItem="fsE-Mn-24h" secondAttribute="bottom" constant="20" id="AcM-3j-zOF"/>
+                            <constraint firstItem="0zY-Uu-YIs" firstAttribute="top" secondItem="7xv-1F-Uek" secondAttribute="bottom" constant="8" id="EhP-Xx-VWm"/>
+                            <constraint firstItem="7xv-1F-Uek" firstAttribute="leading" secondItem="8bC-Xf-vdC" secondAttribute="leadingMargin" id="GiH-qr-psi"/>
+                            <constraint firstItem="RzF-1A-uSr" firstAttribute="trailing" secondItem="8bC-Xf-vdC" secondAttribute="trailingMargin" id="LVr-MS-X1w"/>
+                            <constraint firstItem="rbx-fT-lr7" firstAttribute="centerX" secondItem="8bC-Xf-vdC" secondAttribute="centerX" id="M52-Lb-0Zm"/>
+                            <constraint firstItem="fsE-Mn-24h" firstAttribute="centerX" secondItem="8bC-Xf-vdC" secondAttribute="centerX" id="MOl-cR-dJB"/>
+                            <constraint firstItem="RzF-1A-uSr" firstAttribute="top" secondItem="y3c-jy-aDJ" secondAttribute="bottom" constant="8" id="Rxc-UQ-dqr"/>
+                            <constraint firstAttribute="leadingMargin" secondItem="0zY-Uu-YIs" secondAttribute="leading" id="Sk9-nx-hE3"/>
+                            <constraint firstItem="CC8-ZK-VWZ" firstAttribute="top" secondItem="RzF-1A-uSr" secondAttribute="bottom" constant="8" id="ol5-2g-LEX"/>
+                            <constraint firstItem="RzF-1A-uSr" firstAttribute="leading" secondItem="8bC-Xf-vdC" secondAttribute="leadingMargin" id="sWM-Lc-FN9"/>
+                            <constraint firstItem="CC8-ZK-VWZ" firstAttribute="leading" secondItem="8bC-Xf-vdC" secondAttribute="leadingMargin" id="xqq-cG-9Xk"/>
+                            <constraint firstItem="rbx-fT-lr7" firstAttribute="centerY" secondItem="8bC-Xf-vdC" secondAttribute="centerY" multiplier="3:5" id="ycv-ZI-4Je"/>
+                        </constraints>
+                    </view>
+                    <navigationItem key="navigationItem" title="Booster" id="soh-EZ-iq7"/>
+                    <connections>
+                        <outlet property="activityIndicator" destination="rbx-fT-lr7" id="ixZ-wc-HTG"/>
+                        <outlet property="exportButton" destination="0zY-Uu-YIs" id="46t-uG-HRl"/>
+                        <outlet property="keysWaveformView" destination="RzF-1A-uSr" id="cwt-i3-EGf"/>
+                        <outlet property="playButton" destination="7xv-1F-Uek" id="dte-1S-wtH"/>
+                        <outlet property="recordButton" destination="CC8-ZK-VWZ" id="zvf-Eu-h8R"/>
+                        <outlet property="routeLabel" destination="fsE-Mn-24h" id="dG0-5g-hMp"/>
+                    </connections>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="dkx-z0-nzr" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="960.79999999999995" y="-544.67766116941539"/>
+        </scene>
+        <!--Navigation Controller-->
+        <scene sceneID="eyq-nL-rai">
+            <objects>
+                <navigationController automaticallyAdjustsScrollViewInsets="NO" id="hBH-bW-9Tg" sceneMemberID="viewController">
+                    <toolbarItems/>
+                    <navigationBar key="navigationBar" contentMode="scaleToFill" id="bN1-zp-cNI">
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="44"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </navigationBar>
+                    <nil name="viewControllers"/>
+                    <connections>
+                        <segue destination="BYZ-38-t0r" kind="relationship" relationship="rootViewController" id="UDF-a3-obY"/>
+                    </connections>
+                </navigationController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="3LN-i3-EMA" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="136.80000000000001" y="-543.77811094452773"/>
+        </scene>
+    </scenes>
+</document>
