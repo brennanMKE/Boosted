@@ -28,30 +28,25 @@ public class BoosterPlayer {
         playerCompletionHandler = handler
         addObservers()
         
+        let mixer = BoosterMixer(scale: scale)
+        
         debugPrint("Asset: \(assetURL.path)")
         let playerItem = AVPlayerItem(url: assetURL)
-        guard let audioMix = try? createAudioMix() else {
-            fatalError()
-        }
-        playerItem.audioMix = audioMix
-        let player = AVPlayer(playerItem: playerItem)
-        if player.status != .readyToPlay {
-            if let error = player.error {
+        playerItem.audioMix = mixer.audioMix
+        player = AVPlayer(playerItem: playerItem)
+        if player?.status != .readyToPlay {
+            if let error = player?.error {
                 debugPrint("Error: \(error)")
                 return
             }
         }
         
-        player.play()
-        assert(!player.isMuted)
+        player?.play()
         
-        if let error = player.error {
+        if let error = player?.error {
             debugPrint("Error: \(error)")
             return
         }
-
-        // return until it is not longer needed
-        self.player = player
     }
     
     private func handlePlayerCompletion() {
@@ -61,7 +56,7 @@ public class BoosterPlayer {
             handler()
             playerCompletionHandler = nil
         }
-        self.player = nil
+        player = nil
     }
     
     // MARK: - Notifications -
@@ -116,67 +111,6 @@ public class BoosterPlayer {
             debugPrint("User Info: \(userInfo)")
         }
         handlePlayerCompletion()
-    }
-    
-    // MARK: - Audio Tap -
-    
-    private let tapInit: MTAudioProcessingTapInitCallback = {
-        (tap, clientInfo, tapStorageOut) in
-        print("init: \(tap)\n")
-    }
-    
-    private let tapFinalize: MTAudioProcessingTapFinalizeCallback = {
-        (tap) in
-        print("finalize: \(tap)\n")
-    }
-    
-    private let tapPrepare: MTAudioProcessingTapPrepareCallback = {
-        (tap, b, c) in
-        print("prepare: \(tap, b, c)\n")
-    }
-    
-    private let tapUnprepare: MTAudioProcessingTapUnprepareCallback = {
-        (tap) in
-        print("unprepare: \(tap)\n")
-    }
-    
-    private let tapProcess: MTAudioProcessingTapProcessCallback = {
-        (tap, numberFrames, flags, bufferListInOut, numberFramesOut, flagsOut) in
-        //print("callback \(tap, numberFrames, flags, bufferListInOut, numberFramesOut, flagsOut)\n")
-        //let status = MTAudioProcessingTapGetSourceAudio(tap, numberFrames, bufferListInOut, flagsOut, nil, numberFramesOut)
-        //print("get audio: \(status)\n")
-        print("process: \(tap) 🎺 with \(numberFrames) frames")
-        assertionFailure("Callback is never called and I do not know why.")
-//        bufferListInOut.
-    }
-    
-    private func createProcessingTap() throws -> MTAudioProcessingTap? {
-        var callbacks = MTAudioProcessingTapCallbacks(
-            version: kMTAudioProcessingTapCallbacksVersion_0,
-            clientInfo: UnsafeMutableRawPointer(Unmanaged<AnyObject>.passUnretained(self as AnyObject).toOpaque()),
-            init: tapInit,
-            finalize: tapFinalize,
-            prepare: tapPrepare,
-            unprepare: tapUnprepare,
-            process: tapProcess)
-        
-        var tap: Unmanaged<MTAudioProcessingTap>?
-        let status = MTAudioProcessingTapCreate(kCFAllocatorDefault, &callbacks, kMTAudioProcessingTapCreationFlag_PostEffects, &tap)
-        if status != noErr {
-            debugPrint("Failed to create audio processing tap.")
-            throw BoosterExporterError.failure
-        }
-        
-        return tap?.takeRetainedValue()
-    }
-    
-    private func createAudioMix() throws -> AVAudioMix? {
-        let inputParameters = AVMutableAudioMixInputParameters()
-        inputParameters.audioTapProcessor = try createProcessingTap()
-        let audioMix = AVMutableAudioMix()
-        audioMix.inputParameters = [inputParameters]
-        
-        return audioMix
     }
     
 }

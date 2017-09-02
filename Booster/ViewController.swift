@@ -33,24 +33,33 @@ class ViewController: UIViewController {
     var recorder: AVAudioRecorder!
     var player: AVAudioPlayer!
     
-    var boostedPlayer: BoosterPlayer? = nil
+    var boosterPlayer: BoosterPlayer? = nil
+    var boosterExporter: BoosterExporter? = nil
+    var boosterWriter: BoosterWriter? = nil
     
     var inputURL: URL {
-        let defaultAssetURL = Bundle.main.url(forResource: "keys", withExtension: "mp3")!
-        return recorder?.url ?? defaultAssetURL
+        return Bundle.main.url(forResource: "keys", withExtension: "mp3")!
     }
     
-    var outputURL: URL {
+    var documentsURL: URL {
         guard let documentsPath = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first else {
             fatalError()
         }
-        return URL(fileURLWithPath: documentsPath).appendingPathComponent("output").appendingPathExtension("mp4")
+        return URL(fileURLWithPath: documentsPath)
+    }
+    
+    var outputURL: URL {
+        return documentsURL.appendingPathComponent("output").appendingPathExtension("mp4")
+    }
+    
+    var exportURL: URL {
+        return documentsURL.appendingPathComponent("export").appendingPathExtension("mp4")
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        let waveColor = UIColor(colorLiteralRed: 0.9569, green: 0.5255, blue: 0.1686, alpha: 1.0)
+        let waveColor = UIColor(red: 0.9569, green: 0.5255, blue: 0.1686, alpha: 1.0)
         keysWaveformView.waveColor = waveColor
         keysWaveformView.backgroundColor = UIColor.clear
         
@@ -82,7 +91,12 @@ class ViewController: UIViewController {
     
     @IBAction func playButtonTapped(_ sender: Any) {
         if !isPlaying {
-            startPlaying()
+            if FileManager.default.fileExists(atPath: outputURL.path) {
+                startPlaying(assetURL: outputURL)
+            }
+            else {
+                startPlaying(assetURL: inputURL)
+            }
         }
         else {
             stopPlaying()
@@ -90,6 +104,9 @@ class ViewController: UIViewController {
     }
     
     @IBAction func exportButtonTapped(_ sender: Any) {
+        if isExporting {
+            return
+        }
         debugPrint("Export")
         export()
     }
@@ -99,6 +116,13 @@ class ViewController: UIViewController {
     }
     
     func startRecording() {
+        if Thread.isMainThread {
+            DispatchQueue.global().async(execute: startRecording)
+            return
+        }
+        if FileManager.default.fileExists(atPath: exportURL.path) {
+            try? FileManager.default.removeItem(at: exportURL)
+        }
         prepareRecorder()
         updateAudioConfiguration(activity: .recording)
         activateAudioSession()
@@ -107,13 +131,23 @@ class ViewController: UIViewController {
     }
     
     func stopRecording() {
+        if Thread.isMainThread {
+            DispatchQueue.global().async(execute: stopRecording)
+            return
+        }
         recorder?.stop()
         deactivateAudioSession()
         refreshViews()
     }
     
-    func startPlaying() {
-        preparePlayer()
+    func startPlaying(assetURL: URL) {
+        if Thread.isMainThread {
+            DispatchQueue.global().async { [weak self] in
+                self?.startPlaying(assetURL: assetURL)
+            }
+            return
+        }
+        preparePlayer(assetURL: assetURL)
         updateAudioConfiguration(activity: .playing)
         activateAudioSession()
         player?.play()
@@ -121,15 +155,17 @@ class ViewController: UIViewController {
     }
     
     func stopPlaying() {
+        if Thread.isMainThread {
+            DispatchQueue.global().async(execute: stopPlaying)
+            return
+        }
         player?.stop()
         deactivateAudioSession()
         refreshViews()
     }
     
     func export() {
-        activityIndicator.startAnimating()
-        
-        let reader = BoosterReader(inputURL: inputURL)
+        let reader = BoosterReader(inputURL: outputURL)
         print("Peak: \(reader.peak)")
         print("Scale: \(reader.scale)")
 
@@ -143,8 +179,25 @@ class ViewController: UIViewController {
             return
         }
         
-//        let exporter = BoosterExporter(inputURL: inputURL, outputURL: outputURL, scale: reader.scale)
-//        try? exporter.export {
+        // writer
+        
+        boosterWriter = BoosterWriter(inputURL: outputURL, outputURL: exportURL, scale: reader.scale)
+        boosterWriter?.write { [weak self] in
+            self?.refreshViews()
+        }
+        
+        //let reader2 = BoosterReader(inputURL: inputURL)
+        
+        // exporter
+        
+//        if FileManager.default.fileExists(atPath: outputURL.path) {
+//            boosterExporter = BoosterExporter(inputURL: outputURL, outputURL: exportURL, scale: reader.scale)
+//        }
+//        else {
+//            boosterExporter = BoosterExporter(inputURL: inputURL, outputURL: exportURL, scale: reader.scale)
+//        }
+//
+//        boosterExporter?.export { [weak self] in
 //            debugPrint("Export completed!")
 //            do {
 //                try session.setActive(false)
@@ -153,21 +206,33 @@ class ViewController: UIViewController {
 //                debugPrint("Error: \(error)")
 //                return
 //            }
+//            if let error = self?.boosterExporter?.error {
+//                debugPrint("Error: \(error)")
+//            }
+//            self?.boosterExporter = nil
+//            self?.refreshViews()
+//            if let assetURL = self?.exportURL {
+//                self?.startPlaying(assetURL: assetURL)
+//            }
 //        }
+        
+        // player
 
         // retain the instance so it does not get released before completing
-        boostedPlayer = BoosterPlayer(assetURL: inputURL, scale: reader.scale)
-        boostedPlayer?.play { [weak self] in
-            do {
-                try session.setActive(false)
-            }
-            catch {
-                debugPrint("Error: \(error)")
-                return
-            }
-            self?.boostedPlayer = nil
-            self?.activityIndicator.stopAnimating()
-        }
+//        boosterPlayer = BoosterPlayer(assetURL: inputURL, scale: reader.scale)
+//        boosterPlayer?.play { [weak self] in
+//            do {
+//                try session.setActive(false)
+//            }
+//            catch {
+//                debugPrint("Error: \(error)")
+//                return
+//            }
+//            self?.boosterPlayer = nil
+//            self?.activityIndicator.stopAnimating()
+//        }
+        
+        refreshViews()
     }
     
     func updateAudioConfiguration(activity: AudioActivity) {
@@ -204,8 +269,6 @@ class ViewController: UIViewController {
     
     func prepareRecorder() {
         if recorder == nil {
-            let recordingURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("recording.m4a")
-            
             let settings: [String : Any] = [
                 AVFormatIDKey: UInt32(kAudioFormatMPEG4AAC),
                 AVSampleRateKey: 44100.0,
@@ -213,7 +276,7 @@ class ViewController: UIViewController {
             ]
             
             do {
-                recorder = try AVAudioRecorder(url: recordingURL, settings: settings)
+                recorder = try AVAudioRecorder(url: outputURL, settings: settings)
                 recorder.delegate = self
                 recorder.prepareToRecord()
             }
@@ -223,9 +286,9 @@ class ViewController: UIViewController {
         }
     }
     
-    func preparePlayer() {
+    func preparePlayer(assetURL: URL) {
         do {
-            player = try AVAudioPlayer(contentsOf: inputURL)
+            player = try AVAudioPlayer(contentsOf: assetURL)
             player.delegate = self
             player.prepareToPlay()
         }
@@ -240,6 +303,10 @@ class ViewController: UIViewController {
     
     var isPlaying: Bool {
         return player?.isPlaying ?? false
+    }
+    
+    var isExporting: Bool {
+        return boosterExporter?.isExporting ?? false
     }
     
     var routeName: String {
@@ -257,18 +324,32 @@ class ViewController: UIViewController {
         }
     }
     
+    var isBusy: Bool {
+        return isPlaying || isRecording || isExporting
+    }
+    
     func refreshViews() {
+        if !Thread.isMainThread {
+            DispatchQueue.main.async(execute: refreshViews)
+            return
+        }
         assert(Thread.isMainThread)
         recordButton.setTitle(isRecording ? "Stop" : "Record", for: .normal)
-        if isRecording || isPlaying {
+        if isBusy {
             activityIndicator.startAnimating()
         }
         else {
             activityIndicator.stopAnimating()
         }
         
-        if let assetURL = recorder?.url {
-            updateWaveformView(assetURL: assetURL)
+        if FileManager.default.fileExists(atPath: exportURL.path) {
+            updateWaveformView(assetURL: exportURL)
+        }
+        else if FileManager.default.fileExists(atPath: outputURL.path) {
+            updateWaveformView(assetURL: outputURL)
+        }
+        else {
+            updateWaveformView(assetURL: inputURL)
         }
         
         routeLabel.text = routeName
