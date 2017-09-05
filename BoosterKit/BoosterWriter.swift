@@ -21,6 +21,10 @@ public class BoosterWriter {
         self.inputURL = inputURL
         self.outputURL = outputURL
         self.scale = scale
+        
+        if FileManager.default.fileExists(atPath: outputURL.path) {
+            try? FileManager.default.removeItem(atPath: outputURL.path)
+        }
     }
     
     var readerSettings: [String : Any] {
@@ -66,12 +70,19 @@ public class BoosterWriter {
         assetWriter.startWriting()
         assetWriter.startSession(atSourceTime: kCMTimeZero)
         
+        let beforeURL = createRawOutputFile(outputURL: outputURL, name: "before.raw")
+        let afterURL = createRawOutputFile(outputURL: outputURL, name: "after.raw")
+        guard let beforeFileHandle = try? FileHandle(forWritingTo: beforeURL) else { fatalError() }
+        guard let afterFileHandle = try? FileHandle(forWritingTo: afterURL) else { fatalError() }
+
+        var done = false
+        
         let queue = DispatchQueue(label: "Processing Queue")
         writerInput.requestMediaDataWhenReady(on: queue) { [weak self] in
             guard let s = self else { return }
-            while writerInput.isReadyForMoreMediaData {
+            while writerInput.isReadyForMoreMediaData && !done {
                 if assetReader.status == .reading, let inputSampleBuffer = trackOutput.copyNextSampleBuffer() {
-                    s.processAudio(inputSampleBuffer: inputSampleBuffer, writerInput: writerInput, assetWriter: assetWriter)
+                    s.processAudio(inputSampleBuffer: inputSampleBuffer, writerInput: writerInput, assetWriter: assetWriter, beforeFileHandle: beforeFileHandle, afterFileHandle: afterFileHandle)
                 }
                 else {
                     writerInput.markAsFinished()
@@ -83,6 +94,10 @@ public class BoosterWriter {
                         assetWriter.finishWriting {
                             DispatchQueue.main.async(execute: handler)
                         }
+                        
+                        beforeFileHandle.closeFile()
+                        afterFileHandle.closeFile()
+                        done = true
                     }
                     else {
                         fatalError()
@@ -90,6 +105,7 @@ public class BoosterWriter {
                 }
             }
         }
+        
         
         if let error = assetReader.error {
             debugPrint("Reader Error: \(error)")
@@ -100,7 +116,7 @@ public class BoosterWriter {
         }
     }
     
-    func processAudio(inputSampleBuffer: CMSampleBuffer, writerInput: AVAssetWriterInput, assetWriter: AVAssetWriter) {
+    func processAudio(inputSampleBuffer: CMSampleBuffer, writerInput: AVAssetWriterInput, assetWriter: AVAssetWriter, beforeFileHandle: FileHandle, afterFileHandle: FileHandle) {
         if let inputBlockBufferRef = CMSampleBufferGetDataBuffer(inputSampleBuffer) {
             let length = CMBlockBufferGetDataLength(inputBlockBufferRef)
             let inputBytes = UnsafeMutablePointer<Int16>.allocate(capacity: length)
@@ -117,6 +133,9 @@ public class BoosterWriter {
                 let outputValue = Int16(min(Float(inputValue) * scale, Float(Int16.max)))
                 outputPtr.pointee = outputValue
             }
+            
+            beforeFileHandle.write(Data(bytes: inputBytes, count: length))
+            afterFileHandle.write(Data(bytes: outputBytes, count: length))
             
             // CMSampleBuffer -> CMBlockBuffer -> UnsafeMutablePointer<Int16>
             // Now how to go in the opposite direction?
@@ -168,6 +187,19 @@ public class BoosterWriter {
             }
             writerInput.append(outputSampleBuffer)
         }
+    }
+    
+    func createRawOutputFile(outputURL: URL, name: String) -> URL {
+        var dataURL = outputURL.deletingLastPathComponent()
+        dataURL.appendPathComponent(name)
+        
+        if FileManager.default.fileExists(atPath: dataURL.path) {
+            try? FileManager.default.removeItem(atPath: dataURL.path)
+        }
+        
+        FileManager.default.createFile(atPath: dataURL.path, contents: nil, attributes: nil)
+        
+        return dataURL
     }
     
 }
