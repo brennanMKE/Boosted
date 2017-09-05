@@ -9,7 +9,7 @@
 import Foundation
 import AVFoundation
 
-//Reference: https://github.com/ZainHaq/DownSampler
+// Reference: https://github.com/ZainHaq/DownSampler
 
 public class BoosterWriter {
     
@@ -30,32 +30,29 @@ public class BoosterWriter {
             return
         }
         
-        // AVLinearPCMIsNonInterleaved
-        
         guard let track = asset.tracks(withMediaType: AVMediaTypeAudio).first else {
             print("No audio track found in asset")
             return
         }
         
-        let outputSettings: [String : Any] = [
-//            AVFormatIDKey: Int(kAudioFormatLinearPCM),
-//            AVLinearPCMIsBigEndianKey: false,
-//            AVLinearPCMIsFloatKey: false,
-//            AVLinearPCMBitDepthKey: 16,
-//            AVSampleRateKey: AVAudioSession.sharedInstance().sampleRate,
-//            AVLinearPCMIsNonInterleaved: false
+        let readerSettings: [String : Any] = [
+            AVFormatIDKey: Int(kAudioFormatLinearPCM),
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsNonInterleaved: false
+        ]
+        
+        let writerSettings: [String : Any] = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
             AVSampleRateKey: AVAudioSession.sharedInstance().sampleRate,
             AVEncoderBitRateKey: 16000,
             AVNumberOfChannelsKey: 1
         ]
         
-        let readerSettings: [String : Any] = [AVFormatIDKey: Int(kAudioFormatLinearPCM)]
-        
-        let audioInput = AVAssetWriterInput(mediaType: AVMediaTypeAudio, outputSettings: outputSettings)
-        audioInput.expectsMediaDataInRealTime = false
-        
-        assetWriter.add(audioInput)
+        let writerInput = AVAssetWriterInput(mediaType: AVMediaTypeAudio, outputSettings: writerSettings)
+        writerInput.expectsMediaDataInRealTime = false
+        assetWriter.add(writerInput)
         
         let trackOutput = AVAssetReaderTrackOutput(track: track, outputSettings: readerSettings)
         trackOutput.alwaysCopiesSampleData = false
@@ -65,10 +62,10 @@ public class BoosterWriter {
         assetWriter.startWriting()
         assetWriter.startSession(atSourceTime: kCMTimeZero)
         
-        let queue = DispatchQueue(label: "Downsample Queue")
-        audioInput.requestMediaDataWhenReady(on: queue) { [weak self] in
+        let queue = DispatchQueue(label: "Processing Queue")
+        writerInput.requestMediaDataWhenReady(on: queue) { [weak self] in
             guard let s = self else { return }
-            while audioInput.isReadyForMoreMediaData {
+            while writerInput.isReadyForMoreMediaData {
                 while assetReader.status == .reading {
                     if let inputSampleBuffer = trackOutput.copyNextSampleBuffer() {
                         if let inputBlockBufferRef = CMSampleBufferGetDataBuffer(inputSampleBuffer) {
@@ -80,12 +77,12 @@ public class BoosterWriter {
                             (0..<length).forEach { index in
                                 // Pointer math
                                 // https://developer.apple.com/documentation/swift/unsafemutablepointer
+                                // Advance the pointer to the next value.
                                 let inputPtr = inputBytes + index
                                 let outputPtr = outputBytes + index
                                 let inputValue = inputPtr.pointee
                                 let outputValue = Int16(min(Float(inputValue) * s.scale, Float(Int16.max)))
                                 outputPtr.pointee = outputValue
-//                                debugPrint("\(inputValue) -> \(outputValue)")
                             }
                             
                             // CMSampleBuffer -> CMBlockBuffer -> UnsafeMutablePointer<Int16>
@@ -93,7 +90,7 @@ public class BoosterWriter {
                             // UnsafeMutablePointer<Int16> -> CMBlockBuffer -> CMSampleBuffer
                             
                             // 1) CMBlockBufferCreateEmpty
-                            // 2) Make UnsafeMutablePointer<Int16> into UnsafeMutableRawPointer? (or can it be used directly?)
+                            // 2) Make UnsafeMutablePointer<Int16> into UnsafeMutableRawPointer?
                             // 2) CMSampleBufferCreate with CMBlockBuffer as a reference
                             
                             // How can a modifed buffer be appended to audioInput?
@@ -106,47 +103,52 @@ public class BoosterWriter {
                             assert(!CMBlockBufferIsEmpty(outputBlockBufferRef))
                             var sampleBuffer: CMSampleBuffer?
                             
-                            let numSamples = CMSampleBufferGetNumSamples(inputSampleBuffer)
-                            
-                            // Crashing error here! Why?
-                            CMSampleBufferCreate(kCFAllocatorDefault, outputBlockBufferRef, true, nil, nil, nil, numSamples, 1, nil, length, nil, &sampleBuffer)
-                            
-//                            inputSampleBuffer
-                            
-                            /*
-                             allocator: CFAllocator,
-                             dataBuffer: CMBlockBuffer,
-                             dataReady: Bool,
-                             makeDataReadyCallback: CMSampleBufferMakeDataReady,
-                             makeDataReadyRefcon: CMSampleBufferMakeDataReady,
-                             formatDescription: CMSampleBufferMakeDataReady,
-                             formatDescription: Dictionary,
-                             numSamples: Int,
-                             numSampleTimingEntries: Int,
-                             sampleTimingArray: CMSampleTimingInfo,
-                             numSampleSizeEntries: Int,
-                             sampleSizeArray: Array,
-                             sBufOut: CMSampleBuffer
-                             */
-                            
-//                            CMSampleBufferGet
+                            let duration = CMSampleBufferGetDuration(inputSampleBuffer)
+                            let presentationTimeStamp = CMSampleBufferGetPresentationTimeStamp(inputSampleBuffer)
+                            let decodeTimeStamp = CMSampleBufferGetDecodeTimeStamp(inputSampleBuffer)
 
-
+                            let formatDescription = CMSampleBufferGetFormatDescription(inputSampleBuffer)
+                            let timingInfo: [CMSampleTimingInfo] = [CMSampleTimingInfo(duration: duration, presentationTimeStamp: presentationTimeStamp, decodeTimeStamp: decodeTimeStamp)]
+                            let sampleSizes: [Int] = [CMBlockBufferGetDataLength(inputBlockBufferRef)]
+                            
+                            let result = CMSampleBufferCreate(
+                                kCFAllocatorDefault,            // allocator: CFAllocator?,
+                                outputBlockBufferRef,           // dataBuffer: CMBlockBuffer?,
+                                true,                           // dataReady: Boolean,
+                                nil,                            // makeDataReadyCallback: CMSampleBufferMakeDataReadyCallback?,
+                                nil,                            // makeDataReadyRefcon: UnsafeMutablePointer<Void>,
+                                formatDescription,              // formatDescription: CMFormatDescription?,
+                                1,                              // numSamples: CMItemCount,
+                                timingInfo.count,               // numSampleTimingEntries: CMItemCount,
+                                timingInfo,                     // sampleTimingArray: UnsafePointer<CMSampleTimingInfo>,
+                                sampleSizes.count,              // numSampleSizeEntries: CMItemCount,
+                                sampleSizes,                    // sampleSizeArray: UnsafePointer<Int>,
+                                &sampleBuffer                   // sBufOut: UnsafeMutablePointer<Unmanaged<CMSampleBuffer>?>
+                            )
+                            
+                            if result != noErr {
+                                fatalError()
+                            }
  
-                            guard let outputSampleBuffer = sampleBuffer else { fatalError() }
-                            audioInput.append(outputSampleBuffer)
+                            guard let outputSampleBuffer = sampleBuffer else {
+                                fatalError()
+                            }
+                            writerInput.append(outputSampleBuffer)
                         }
                     }
-                }
-                
-                if assetReader.status == .completed {
-                    assetWriter.endSession(atSourceTime: asset.duration)
-                    assetWriter.finishWriting {
-                        DispatchQueue.main.async(execute: handler)
+                    else {
+                        writerInput.markAsFinished()
+                        
+                        if assetReader.status == .completed {
+                            assetWriter.endSession(atSourceTime: asset.duration)
+                            assetWriter.finishWriting {
+                                DispatchQueue.main.async(execute: handler)
+                            }
+                        }
+                        else {
+                            fatalError()
+                        }
                     }
-                }
-                else {
-                    fatalError()
                 }
             }
         }

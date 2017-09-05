@@ -183,6 +183,7 @@ class ViewController: UIViewController {
         
         boosterWriter = BoosterWriter(inputURL: outputURL, outputURL: exportURL, scale: reader.scale)
         boosterWriter?.write { [weak self] in
+            debugPrint("Exported to \(self?.exportURL.lastPathComponent ?? "Unknown")")
             self?.refreshViews()
         }
         
