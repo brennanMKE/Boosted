@@ -44,6 +44,8 @@ public class BoosterExporter {
         deleteOutput()
         
         let asset = AVAsset(url: inputURL)
+        assert(asset.isReadable)
+        assert(asset.isExportable)
         guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else {
             error = BoosterExporterError.failure
             DispatchQueue.main.async(execute: handler)

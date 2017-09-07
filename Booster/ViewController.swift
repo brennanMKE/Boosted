@@ -23,7 +23,7 @@ enum AudioActivity {
 
 class ViewController: UIViewController {
     
-    @IBOutlet weak var keysWaveformView: WaveformView!
+    @IBOutlet weak var keysWaveformView: WaveformView?
     @IBOutlet weak var recordButton: UIButton!
     @IBOutlet weak var playButton: UIButton!
     @IBOutlet weak var exportButton: UIButton!
@@ -49,19 +49,21 @@ class ViewController: UIViewController {
     }
     
     var outputURL: URL {
-        return documentsURL.appendingPathComponent("output").appendingPathExtension("mp4")
+        return documentsURL.appendingPathComponent("output").appendingPathExtension("m4a")
     }
     
     var exportURL: URL {
-        return documentsURL.appendingPathComponent("export").appendingPathExtension("mp4")
+        return documentsURL.appendingPathComponent("export").appendingPathExtension("m4a")
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         
+//        keysWaveformView = nil
+        
         let waveColor = UIColor(red: 0.9569, green: 0.5255, blue: 0.1686, alpha: 1.0)
-        keysWaveformView.waveColor = waveColor
-        keysWaveformView.backgroundColor = UIColor.clear
+        keysWaveformView?.waveColor = waveColor
+        keysWaveformView?.backgroundColor = UIColor.clear
         
         NotificationCenter.default.addObserver(self, selector: #selector(ViewController.handleRouteChange(_:)), name: NSNotification.Name.AVAudioSessionRouteChange, object: nil)
     }
@@ -112,7 +114,7 @@ class ViewController: UIViewController {
     }
     
     func updateWaveformView(assetURL: URL) {
-        keysWaveformView.asset = AVURLAsset(url: assetURL)
+        keysWaveformView?.asset = AVURLAsset(url: assetURL)
     }
     
     func startRecording() {
@@ -182,9 +184,21 @@ class ViewController: UIViewController {
         // writer
         
         boosterWriter = BoosterWriter(inputURL: outputURL, outputURL: exportURL, scale: reader.scale)
-        boosterWriter?.write { [weak self] in
-            debugPrint("Exported to \(self?.exportURL.lastPathComponent ?? "Unknown")")
-            self?.refreshViews()
+        boosterWriter?.write { [weak self] (error) in
+            guard let s = self else { return }
+            if let error = error {
+                debugPrint("Error: \(error)")
+                let nsError = error as NSError
+                let avc = UIAlertController(title: "Error", message: nsError.localizedDescription, preferredStyle: .alert)
+                avc.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+                s.present(avc, animated: true, completion: nil)
+            }
+            else {
+                debugPrint("Exported to \(s.exportURL.lastPathComponent)")
+                s.logFileDetails(fileURL: s.exportURL)
+                s.startPlaying(assetURL: s.exportURL)
+            }
+            s.refreshViews()
         }
         
         //let reader2 = BoosterReader(inputURL: inputURL)
@@ -373,6 +387,18 @@ class ViewController: UIViewController {
         present(alertController, animated: true, completion: nil)
     }
     
+    func logFileDetails(fileURL: URL) {
+        if !FileManager.default.fileExists(atPath: fileURL.path) {
+            debugPrint("File not found: \(fileURL.lastPathComponent)")
+            return
+        }
+        
+        if let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path) {
+            attributes.forEach { attribute in
+                debugPrint("\(attribute.key.rawValue): \(attribute.value)")
+            }
+        }
+    }
 }
 
 extension ViewController: AVAudioPlayerDelegate {
