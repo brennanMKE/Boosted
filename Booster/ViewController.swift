@@ -59,7 +59,7 @@ class ViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-//        keysWaveformView = nil
+        keysWaveformView = nil
         
         let waveColor = UIColor(red: 0.9569, green: 0.5255, blue: 0.1686, alpha: 1.0)
         keysWaveformView?.waveColor = waveColor
@@ -167,10 +167,6 @@ class ViewController: UIViewController {
     }
     
     func export() {
-        let reader = BoosterReader(inputURL: outputURL)
-        print("Peak: \(reader.peak)")
-        print("Scale: \(reader.scale)")
-
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(AVAudioSessionCategorySoloAmbient, mode: AVAudioSessionModeDefault, options: [])
@@ -182,9 +178,8 @@ class ViewController: UIViewController {
         }
         
         // writer
-        
-        boosterWriter = BoosterWriter(inputURL: outputURL, outputURL: exportURL, scale: reader.scale)
-        boosterWriter?.write { [weak self] (error) in
+        boosterWriter = BoosterWriter()
+        boosterWriter?.processAsset(inputURL: outputURL, outputURL: exportURL){ [weak self] error in
             guard let s = self else { return }
             if let error = error {
                 debugPrint("Error: \(error)")
@@ -200,52 +195,6 @@ class ViewController: UIViewController {
             }
             s.refreshViews()
         }
-        
-        //let reader2 = BoosterReader(inputURL: inputURL)
-        
-        // exporter
-        
-//        if FileManager.default.fileExists(atPath: outputURL.path) {
-//            boosterExporter = BoosterExporter(inputURL: outputURL, outputURL: exportURL, scale: reader.scale)
-//        }
-//        else {
-//            boosterExporter = BoosterExporter(inputURL: inputURL, outputURL: exportURL, scale: reader.scale)
-//        }
-//
-//        boosterExporter?.export { [weak self] in
-//            debugPrint("Export completed!")
-//            do {
-//                try session.setActive(false)
-//            }
-//            catch {
-//                debugPrint("Error: \(error)")
-//                return
-//            }
-//            if let error = self?.boosterExporter?.error {
-//                debugPrint("Error: \(error)")
-//            }
-//            self?.boosterExporter = nil
-//            self?.refreshViews()
-//            if let assetURL = self?.exportURL {
-//                self?.startPlaying(assetURL: assetURL)
-//            }
-//        }
-        
-        // player
-
-        // retain the instance so it does not get released before completing
-//        boosterPlayer = BoosterPlayer(assetURL: inputURL, scale: reader.scale)
-//        boosterPlayer?.play { [weak self] in
-//            do {
-//                try session.setActive(false)
-//            }
-//            catch {
-//                debugPrint("Error: \(error)")
-//                return
-//            }
-//            self?.boosterPlayer = nil
-//            self?.activityIndicator.stopAnimating()
-//        }
         
         refreshViews()
     }

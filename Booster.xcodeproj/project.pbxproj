@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		032500201F619707002FC6EE /* BoosterExporterError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0325001F1F619707002FC6EE /* BoosterExporterError.swift */; };
 		0337D8651F58CE3F00B3E532 /* BoosterWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0337D8641F58CE3F00B3E532 /* BoosterWriter.swift */; };
 		034189EA1F57661D009B2435 /* BoosterExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 034189E91F57661D009B2435 /* BoosterExporter.swift */; };
 		039206AD1F57AFC8002A709E /* BoosterReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 039206AC1F57AFC8002A709E /* BoosterReader.swift */; };
@@ -75,6 +76,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0325001F1F619707002FC6EE /* BoosterExporterError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoosterExporterError.swift; sourceTree = "<group>"; };
 		0337D8641F58CE3F00B3E532 /* BoosterWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoosterWriter.swift; sourceTree = "<group>"; };
 		034189E91F57661D009B2435 /* BoosterExporter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BoosterExporter.swift; sourceTree = "<group>"; };
 		039206AC1F57AFC8002A709E /* BoosterReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoosterReader.swift; sourceTree = "<group>"; };
@@ -190,6 +192,7 @@
 				03D1A3401F58C10600FD6182 /* BoosterMixer.swift */,
 				034189E91F57661D009B2435 /* BoosterExporter.swift */,
 				039206AE1F57CBD5002A709E /* BoosterPlayer.swift */,
+				0325001F1F619707002FC6EE /* BoosterExporterError.swift */,
 				03B14FFC1F45F912005107D0 /* BoosterKit.h */,
 				03B14FFD1F45F912005107D0 /* Info.plist */,
 			);
@@ -422,6 +425,7 @@
 				039206AF1F57CBD5002A709E /* BoosterPlayer.swift in Sources */,
 				03D1A3411F58C10600FD6182 /* BoosterMixer.swift in Sources */,
 				03B1501D1F46028F005107D0 /* SampleDataFilter.swift in Sources */,
+				032500201F619707002FC6EE /* BoosterExporterError.swift in Sources */,
 				03B1501F1F46028F005107D0 /* WaveformView.swift in Sources */,
 				034189EA1F57661D009B2435 /* BoosterExporter.swift in Sources */,
 			);

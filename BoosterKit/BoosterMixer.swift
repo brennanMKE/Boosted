@@ -54,29 +54,29 @@ public class BoosterMixer {
     
     private let tapInit: MTAudioProcessingTapInitCallback = {
         (tap, clientInfo, tapStorageOut) in
-        print("init: \(tap)\n")
+        debugPrint("init: \(tap)\n")
     }
     
     private let tapFinalize: MTAudioProcessingTapFinalizeCallback = {
         (tap) in
-        print("finalize: \(tap)\n")
+        debugPrint("finalize: \(tap)\n")
     }
     
     private let tapPrepare: MTAudioProcessingTapPrepareCallback = {
         (tap, b, c) in
-        print("prepare: \(tap, b, c)\n")
+        debugPrint("prepare: \(tap, b, c)\n")
     }
     
     private let tapUnprepare: MTAudioProcessingTapUnprepareCallback = {
         (tap) in
-        print("unprepare: \(tap)\n")
+        debugPrint("unprepare: \(tap)\n")
     }
     
     // MTAudioProcessingTapProcessCallback = @convention(c) (MTAudioProcessingTap, CMItemCount, MTAudioProcessingTapFlags, UnsafeMutablePointer<AudioBufferList>, UnsafeMutablePointer<CMItemCount>, UnsafeMutablePointer<MTAudioProcessingTapFlags>) -> Swift.Void
     
     private let tapProcess: MTAudioProcessingTapProcessCallback = {
         (tap: MTAudioProcessingTap, numberFrames: CMItemCount, flags: MTAudioProcessingTapFlags, bufferListInOut: UnsafeMutablePointer<AudioBufferList>, numberFramesOut: UnsafeMutablePointer<CMItemCount>, flagsOut: UnsafeMutablePointer<MTAudioProcessingTapFlags>) in
-        print("process: \(tap) 🎺 with \(numberFrames) frames")
+        debugPrint("process: \(tap) 🎺 with \(numberFrames) frames")
 //        self?.scaleVolume(bufferListInOut: bufferListInOut)
     }
     

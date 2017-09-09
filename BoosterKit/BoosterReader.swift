@@ -30,7 +30,7 @@ public class BoosterReader {
         }
         
         guard let track = asset.tracks(withMediaType: AVMediaTypeAudio).first else {
-            print("No audio track found in asset")
+            debugPrint("No audio track found in asset")
             return
         }
         

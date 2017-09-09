@@ -11,22 +11,21 @@ import AVFoundation
 
 // Reference: https://github.com/ZainHaq/DownSampler
 
+// Create an OSStatus (26, 26, 26, 1) where 26 is for A to Z.
+public let kBoosterWriterError_CannotProcessSampleBuffer: OSStatus = 26 << 24 | 26 << 16 | 26 << 8 | 1
+
 public class BoosterWriter {
     
-    private var inputURL: URL
-    private var outputURL: URL
-    private var scale: Float
+    public init() {}
     
-    private var bypass: Bool = false
-    private var simplify: Bool = true
-    
-    public init(inputURL: URL, outputURL: URL, scale: Float) {
-        self.inputURL = inputURL
-        self.outputURL = outputURL
-        self.scale = scale
-        
-        if FileManager.default.fileExists(atPath: outputURL.path) {
-            try? FileManager.default.removeItem(atPath: outputURL.path)
+    public func processAsset(inputURL: URL, outputURL: URL, completionHandler handler: @escaping (_ error: Error?) -> Swift.Void) {
+        read(inputURL: inputURL) { [weak self] (peak, scale, error) in
+            if error != nil {
+                handler(error)
+            }
+            else {
+                self?.write(inputURL: inputURL, outputURL: outputURL, scale: scale, completionHandler: handler)
+            }
         }
     }
     
@@ -46,18 +45,11 @@ public class BoosterWriter {
     
     var audioChannelLayoutData: Data {
         var channelLayout = AudioChannelLayout()
-        
-        // memset is not needed with Swift?
-        // https://stackoverflow.com/questions/30971278/do-i-need-to-memset-a-c-struct-in-swift
-//        let size = MemoryLayout<AudioChannelLayout>.size
-//        memset(&channelLayout, 0, size)
-        
         channelLayout.mChannelLayoutTag = layoutTag
         let data = Data(bytes: &channelLayout, count: MemoryLayout<AudioChannelLayout>.size)
         return data
     }
     
-    // kAudioFormatMPEG4AAC AVAssetWriterInput
     var writerSettings: [String : Any] {
         return [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
@@ -68,15 +60,88 @@ public class BoosterWriter {
         ]
     }
     
-    public func write(completionHandler handler: @escaping (_ error: Error?) -> Swift.Void) {
+    private func read(inputURL: URL, completionHandler handler: @escaping (_ peak: Float, _ scale: Float, _ error: Error?) -> Swift.Void) {
+        // 1) Read asset for inputURL
+        // 2) Check value for each audio sample
+        // 3) Compare max value to max possible value
         let asset = AVAsset(url: inputURL)
-        guard let assetReader = try? AVAssetReader(asset: asset),
-            let assetWriter = try? AVAssetWriter(outputURL: outputURL, fileType: AVFileTypeAppleM4A) else {
+        guard let assetReader = try? AVAssetReader(asset: asset) else {
             return
         }
         
         guard let track = asset.tracks(withMediaType: AVMediaTypeAudio).first else {
-            print("No audio track found in asset")
+            debugPrint("No audio track found in asset")
+            return
+        }
+        
+        let outputSettings: [String : Any] = [
+            AVFormatIDKey: Int(kAudioFormatLinearPCM),
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMBitDepthKey: 16
+        ]
+        
+        let trackOutput = AVAssetReaderTrackOutput(track: track, outputSettings: outputSettings)
+        assetReader.add(trackOutput)
+        assetReader.startReading()
+        
+        let queue = DispatchQueue(label: "Reader Queue")
+        queue.async { [weak self] in
+            guard let strongSelf = self else { return }
+            var maxValue: Int16 = 0
+            while assetReader.status == .reading {
+                if let sampleBuffer = trackOutput.copyNextSampleBuffer() {
+                    if let blockBufferRef = CMSampleBufferGetDataBuffer(sampleBuffer) {
+                        let length = CMBlockBufferGetDataLength(blockBufferRef)
+                        let sampleBytes = UnsafeMutablePointer<Int16>.allocate(capacity: length)
+                        guard strongSelf.checkStatus(CMBlockBufferCopyDataBytes(blockBufferRef, 0, length, sampleBytes), message: "Copying data bytes") else {
+                            return
+                        }
+                        // Iterate over each Int16 to check if it exceeds the current maxValue.
+                        (0..<length).forEach{ index in
+                            // Pointer math
+                            // https://developer.apple.com/documentation/swift/unsafemutablepointer
+                            let ptr = sampleBytes + index
+                            let value = abs(ptr.pointee)
+                            if value > maxValue {
+                                maxValue = value
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if assetReader.status == .completed {
+                let peak = Float(maxValue) / Float(Int16.max)
+                let scale = Float(1.0) / peak
+                handler(peak, scale, nil)
+            }
+            else {
+                handler(1.0, 1.0, BoosterExporterError.failure)
+            }
+        }
+    }
+
+    private func write(inputURL: URL, outputURL: URL, scale: Float, completionHandler handler: @escaping (_ error: Error?) -> Swift.Void) {
+        if FileManager.default.fileExists(atPath: outputURL.path) {
+            try? FileManager.default.removeItem(atPath: outputURL.path)
+        }
+
+        let asset = AVAsset(url: inputURL)
+        guard let assetReader = try? AVAssetReader(asset: asset),
+            let assetWriter = try? AVAssetWriter(outputURL: outputURL, fileType: AVFileTypeAppleM4A) else {
+                debugPrint("Unable to create reader or writer")
+                DispatchQueue.main.async {
+                    handler(BoosterExporterError.failure)
+                }
+                return
+        }
+        
+        guard let track = asset.tracks(withMediaType: AVMediaTypeAudio).first else {
+            debugPrint("No audio track found in asset")
+            DispatchQueue.main.async {
+                handler(BoosterExporterError.failure)
+            }
             return
         }
         
@@ -93,21 +158,14 @@ public class BoosterWriter {
         assetWriter.startWriting()
         assetWriter.startSession(atSourceTime: kCMTimeZero)
         
-        let beforeURL = createRawOutputFile(outputURL: outputURL, name: "before.raw")
-        let afterURL = createRawOutputFile(outputURL: outputURL, name: "after.raw")
-        guard let beforeFileHandle = try? FileHandle(forWritingTo: beforeURL) else { fatalError() }
-        guard let afterFileHandle = try? FileHandle(forWritingTo: afterURL) else { fatalError() }
-
-        let queue = DispatchQueue(label: "Processing Queue")
-        
+        let queue = DispatchQueue(label: "Writing Queue")
         writerInput.requestMediaDataWhenReady(on: queue) { [weak self] in
             guard let s = self else { return }
             assert(writerInput.isReadyForMoreMediaData)
             
             while assetReader.status == .reading {
                 if let inputSampleBuffer = trackOutput.copyNextSampleBuffer() {
-                    debugPrint("Read input sample buffer")
-                    if !s.processAudio(inputSampleBuffer: inputSampleBuffer, writerInput: writerInput, assetWriter: assetWriter, beforeFileHandle: beforeFileHandle, afterFileHandle: afterFileHandle) {
+                    if !s.processSampleBuffer(scale: scale, sampleBuffer: inputSampleBuffer, writerInput: writerInput) {
                         s.printReaderStatus(reader: assetReader)
                         s.printWriterStatus(writer: assetWriter)
                         DispatchQueue.main.async {
@@ -117,7 +175,6 @@ public class BoosterWriter {
                     }
                 }
                 else {
-                    debugPrint("Finished")
                     writerInput.markAsFinished()
                     
                     if assetReader.status == .completed {
@@ -130,130 +187,51 @@ public class BoosterWriter {
                         
                         s.printReaderStatus(reader: assetReader)
                         s.printWriterStatus(writer: assetWriter)
-                        
-                        beforeFileHandle.closeFile()
-                        afterFileHandle.closeFile()
                     }
                     else {
-                        fatalError()
+                        DispatchQueue.main.async {
+                            handler(BoosterExporterError.failure)
+                        }
                     }
                 }
             }
         }
     }
     
-    func processAudio(inputSampleBuffer: CMSampleBuffer, writerInput: AVAssetWriterInput, assetWriter: AVAssetWriter, beforeFileHandle: FileHandle, afterFileHandle: FileHandle) -> Bool {
-        if var inputBlockBuffer = CMSampleBufferGetDataBuffer(inputSampleBuffer) {
-            if bypass {
-                if (!writerInput.append(inputSampleBuffer)) {
-                    return false
-                }
-            }
-            else {
-                let length = CMBlockBufferGetDataLength(inputBlockBuffer)
-                let inputBytes = UnsafeMutablePointer<Int16>.allocate(capacity: length)
-                let outputBytes = UnsafeMutablePointer<Int16>.allocate(capacity: length)
-                CMBlockBufferCopyDataBytes(inputBlockBuffer, 0, length, inputBytes)
-                // Iterate over each Int16 to check if it exceeds the current maxValue.
-                (0..<length).forEach { index in
-                    // Pointer math
-                    // https://developer.apple.com/documentation/swift/unsafemutablepointer
-                    // Advance the pointer to the next value.
-                    let inputPtr = inputBytes + index
-                    let outputPtr = outputBytes + index
-                    let inputValue = inputPtr.pointee
-                    let scaled = Float(inputValue) * scale
-                    // ensure value falls within range
-                    let outputValue = Int16(max(min(scaled, Float(Int16.max)), Float(Int16.min)))
-                    outputPtr.pointee = outputValue
-                }
-                
-                beforeFileHandle.write(Data(bytes: inputBytes, count: length))
-                afterFileHandle.write(Data(bytes: outputBytes, count: length))
-                
-                if simplify {
-                    var blockBuffer: CMBlockBuffer?
-                    CMBlockBufferCreateEmpty(nil, 0, CMBlockBufferFlags(0), &blockBuffer)
-                    guard let outputBlockBuffer = blockBuffer else { fatalError() }
-                    assert(CMBlockBufferIsEmpty(outputBlockBuffer))
-                    let memoryBlock = UnsafeMutableRawPointer(outputBytes)
-                    CMBlockBufferAppendMemoryBlock(outputBlockBuffer, memoryBlock, length, nil, nil, 0, length, CMBlockBufferFlags(0))
-                    assert(!CMBlockBufferIsEmpty(outputBlockBuffer))
-                    CMSampleBufferSetDataBuffer(inputSampleBuffer, outputBlockBuffer)
-                    assert(CMSampleBufferIsValid(inputSampleBuffer))
-                    if (!writerInput.append(inputSampleBuffer)) {
-                        return false
-                    }
-                }
-                else {
-                    
-                    let outputSampleBuffer = createSampleBuffer(outputBytes: outputBytes, inputSampleBuffer: inputSampleBuffer, length: length)
-                    
-                    assert(CMSampleBufferIsValid(outputSampleBuffer))
-                    assert(CMSampleBufferGetDuration(inputSampleBuffer) == CMSampleBufferGetDuration(outputSampleBuffer))
-                    assert(CMSampleBufferGetNumSamples(inputSampleBuffer) == CMSampleBufferGetNumSamples(outputSampleBuffer))
-                    
-                    if (!writerInput.append(outputSampleBuffer)) {
-                        return false
-                    }
-                }
-            }
+    func processSampleBuffer(scale: Float, sampleBuffer: CMSampleBuffer, writerInput: AVAssetWriterInput) -> Bool {
+        guard let blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else {
+            return false
+        }
+        let length = CMBlockBufferGetDataLength(blockBuffer)
+
+        var sampleBytes = UnsafeMutablePointer<Int16>.allocate(capacity: length)
+        defer { sampleBytes.deallocate(capacity: length) }
+        
+        guard checkStatus(CMBlockBufferCopyDataBytes(blockBuffer, 0, length, sampleBytes), message: "Copying block buffer") else {
+            return false
         }
         
-        return true
+        (0..<length).forEach { index in
+            let ptr = sampleBytes + index
+            let scaledValue = Float(ptr.pointee) * scale
+            let processedValue = Int16(max(min(scaledValue, Float(Int16.max)), Float(Int16.min)))
+            ptr.pointee = processedValue
+        }
+        
+        guard checkStatus(CMBlockBufferReplaceDataBytes(sampleBytes, blockBuffer, 0, length), message: "Replacing data bytes in block buffer") else { return false }
+        
+        assert(CMSampleBufferIsValid(sampleBuffer))
+        
+        return writerInput.append(sampleBuffer)
     }
 
-    // CMSampleBuffer -> CMBlockBuffer -> UnsafeMutablePointer<Int16>
-    // Now how to go in the opposite direction?
-    // UnsafeMutablePointer<Int16> -> CMBlockBuffer -> CMSampleBuffer
-
-    // 1) CMBlockBufferCreateEmpty
-    // 2) Make UnsafeMutablePointer<Int16> into UnsafeMutableRawPointer?
-    // 2) CMSampleBufferCreate with CMBlockBuffer as a reference
-
-    func createSampleBuffer(outputBytes: UnsafeMutablePointer<Int16>, inputSampleBuffer: CMSampleBuffer, length: Int) -> CMSampleBuffer {
-        var blockBuffer: CMBlockBuffer?
-        CMBlockBufferCreateEmpty(nil, 0, CMBlockBufferFlags(0), &blockBuffer)
-        guard let outputBlockBuffer = blockBuffer else { fatalError() }
-        assert(CMBlockBufferIsEmpty(outputBlockBuffer))
-        let memoryBlock = UnsafeMutableRawPointer(outputBytes)
-        CMBlockBufferAppendMemoryBlock(outputBlockBuffer, memoryBlock, length, nil, nil, 0, length, CMBlockBufferFlags(0))
-        assert(!CMBlockBufferIsEmpty(outputBlockBuffer))
-        var sampleBuffer: CMSampleBuffer?
-        
-        let duration = CMSampleBufferGetDuration(inputSampleBuffer)
-        let presentationTimeStamp = CMSampleBufferGetPresentationTimeStamp(inputSampleBuffer)
-        let decodeTimeStamp = CMSampleBufferGetDecodeTimeStamp(inputSampleBuffer)
-        
-        let formatDescription = CMSampleBufferGetFormatDescription(inputSampleBuffer)
-        let timingInfo: [CMSampleTimingInfo] = [CMSampleTimingInfo(duration: duration, presentationTimeStamp: presentationTimeStamp, decodeTimeStamp: decodeTimeStamp)]
-        var sampleSizes: [CMItemCount] = []
-        CMSampleBufferGetSampleSizeArray(inputSampleBuffer, 0, nil, &sampleSizes)
-        
-        let result = CMSampleBufferCreate(
-            kCFAllocatorDefault,            // allocator: CFAllocator?,
-            outputBlockBuffer,           // dataBuffer: CMBlockBuffer?,
-            true,                           // dataReady: Boolean,
-            nil,                            // makeDataReadyCallback: CMSampleBufferMakeDataReadyCallback?,
-            nil,                            // makeDataReadyRefcon: UnsafeMutablePointer<Void>,
-            formatDescription,              // formatDescription: CMFormatDescription?,
-            1,                              // numSamples: CMItemCount,
-            timingInfo.count,               // numSampleTimingEntries: CMItemCount,
-            timingInfo,                     // sampleTimingArray: UnsafePointer<CMSampleTimingInfo>,
-            sampleSizes.count,              // numSampleSizeEntries: CMItemCount,
-            sampleSizes,                    // sampleSizeArray: UnsafePointer<Int>,
-            &sampleBuffer                   // sBufOut: UnsafeMutablePointer<Unmanaged<CMSampleBuffer>?>
-        )
-        
-        if result != noErr {
-            fatalError()
+    func checkStatus(_ status: OSStatus, message: String) -> Bool {
+        // See: https://www.osstatus.com/
+        assert(kCMBlockBufferNoErr == noErr)
+        if status != noErr {
+            debugPrint("Error: \(message) [\(status)]")
         }
-        
-        guard let resultSampleBuffer = sampleBuffer else {
-            fatalError()
-        }
-        
-        return resultSampleBuffer
+        return status == noErr
     }
     
     func createRawOutputFile(outputURL: URL, name: String) -> URL {
@@ -270,38 +248,14 @@ public class BoosterWriter {
     }
     
     func printReaderStatus(reader: AVAssetReader) {
-        switch reader.status {
-        case .unknown:
-            debugPrint("Reader Status: unknown")
-        case .reading:
-            debugPrint("Reader Status: reading")
-        case .completed:
-            debugPrint("Reader Status: completed")
-        case .failed:
-            debugPrint("Reader Status: failed")
-        case .cancelled:
-            debugPrint("Reader Status: cancelled")
-        }
         if let error = reader.error {
-            debugPrint("Reader Error: \(error)")
+            debugPrint("Reader Error: [\(reader.status.rawValue)] \(error)")
         }
     }
     
     func printWriterStatus(writer: AVAssetWriter) {
-        switch writer.status {
-        case .unknown:
-            debugPrint("Writer Status: unknown")
-        case .writing:
-            debugPrint("Writer Status: writing")
-        case .completed:
-            debugPrint("Writer Status: completed")
-        case .failed:
-            debugPrint("Writer Status: failed")
-        case .cancelled:
-            debugPrint("Writer Status: cancelled")
-        }
         if let error = writer.error {
-            debugPrint("Writer Error: \(error)")
+            debugPrint("Writer Error: [\(writer.status.rawValue)] \(error)")
         }
     }
     

@@ -9,10 +9,6 @@
 import Foundation
 import AVFoundation
 
-public enum BoosterExporterError: Error {
-    case failure
-}
-
 // https://stackoverflow.com/questions/43951082/using-mtaudioprocessingtap-with-avassetexportsession
 
 public class BoosterExporter {
